@@ -1,0 +1,48 @@
+{
+  "name": "weborder",
+  "version": "1.0.0",
+  "description": "소상공인·소기업을 위한 웹 기반 주문 관리 시스템",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:accuracy": "vitest run tests/accuracy",
+    "test:all": "npm run test && npm run test:e2e && npm run test:accuracy",
+    "type-check": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seoyoungkim57/webOrder.git"
+  },
+  "keywords": [],
+  "author": "seoyoungkim57",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/seoyoungkim57/webOrder/issues"
+  },
+  "homepage": "https://github.com/seoyoungkim57/webOrder#readme",
+  "dependencies": {
+    "next": "14.2.0",
+    "react": "18.3.0",
+    "react-dom": "18.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.0",
+    "@types/react": "18.3.0",
+    "@types/react-dom": "18.3.0",
+    "autoprefixer": "10.4.19",
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.2.0",
+    "postcss": "8.4.38",
+    "tailwindcss": "3.4.4",
+    "typescript": "5.4.5"
+  }
+}
