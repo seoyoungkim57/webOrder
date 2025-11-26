@@ -1,0 +1,190 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =====================
+// NextAuth.js 관련 모델
+// =====================
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  password        String?   // 비밀번호 (해시)
+  name            String?
+  phone           String?
+  businessName    String?
+  businessNumber  String?
+  address         String?
+  addressDetail   String?
+  emailVerified   DateTime?
+  image           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  accounts          Account[]
+  sessions          Session[]
+  orders            Order[]
+  savedDestinations SavedDestination[]
+  recentItems       RecentItem[]
+
+  @@index([email])
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// =====================
+// 주문 관련 모델
+// =====================
+
+model Order {
+  id                       String    @id @default(uuid())
+  userId                   String
+  orderNumber              String    @unique
+  recipientName            String
+  recipientBusinessName    String
+  recipientBusinessNumber  String?
+  recipientPhone1          String
+  recipientPhone2          String?
+  recipientAddress         String
+  recipientAddressDetail   String?
+  deliveryDate             DateTime
+  deliveryTime             String?
+  memo                     String?   @db.Text
+  status                   String    @default("DRAFT")
+  token                    String    @unique @default(uuid())
+  tokenExpiresAt           DateTime
+  verificationCode         String
+  viewCount                Int       @default(0)
+  lastViewedAt             DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     OrderItem[]
+  histories OrderHistory[]
+
+  @@index([userId])
+  @@index([token])
+  @@index([orderNumber])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  itemCode  String?
+  itemName  String
+  itemSpec  String?
+  quantity  Decimal  @db.Decimal(10, 2)
+  unit      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+model OrderHistory {
+  id        String   @id @default(uuid())
+  orderId   String
+  status    String
+  reason    String?  @db.Text
+  changedBy String
+  ipAddress String?
+  userAgent String?  @db.Text
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([createdAt(sort: Desc)])
+}
+
+// =====================
+// 편의 기능 모델
+// =====================
+
+model SavedDestination {
+  id             String    @id @default(uuid())
+  userId         String
+  nickname       String
+  businessName   String
+  businessNumber String?
+  contactName    String
+  phone1         String
+  phone2         String?
+  address        String
+  addressDetail  String?
+  isDefault      Boolean   @default(false)
+  usageCount     Int       @default(0)
+  lastUsedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model RecentItem {
+  id         String   @id @default(uuid())
+  userId     String
+  itemCode   String?
+  itemName   String
+  itemSpec   String?
+  unit       String
+  usageCount Int      @default(1)
+  lastUsedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemName, itemSpec])
+  @@index([userId])
+}
