@@ -3,6 +3,7 @@
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
+import Link from 'next/link'
 
 export default function DashboardPage() {
   const { data: session, status } = useSession()
@@ -70,9 +71,12 @@ export default function DashboardPage() {
                 <p className="mt-2 text-sm text-blue-700">
                   수주자에게 보낼 새로운 주문을 생성합니다.
                 </p>
-                <button className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">
+                <Link
+                  href="/orders/new"
+                  className="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 transition-colors"
+                >
                   주문 생성
-                </button>
+                </Link>
               </div>
 
               <div className="bg-green-50 rounded-lg p-6">
@@ -80,9 +84,12 @@ export default function DashboardPage() {
                 <p className="mt-2 text-sm text-green-700">
                   생성한 주문들을 확인하고 관리합니다.
                 </p>
-                <button className="mt-4 px-4 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700">
+                <Link
+                  href="/orders"
+                  className="mt-4 inline-block px-4 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 transition-colors"
+                >
                   목록 보기
-                </button>
+                </Link>
               </div>
 
               <div className="bg-purple-50 rounded-lg p-6">
@@ -90,9 +97,12 @@ export default function DashboardPage() {
                 <p className="mt-2 text-sm text-purple-700">
                   자주 거래하는 수주자를 관리합니다.
                 </p>
-                <button className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700">
+                <Link
+                  href="/destinations"
+                  className="mt-4 inline-block px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700 transition-colors"
+                >
                   관리하기
-                </button>
+                </Link>
               </div>
             </div>
           </div>

@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 export default function Home() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -8,10 +10,19 @@ export default function Home() {
         <p className="text-xl text-gray-600 mb-8">
           소상공인·소기업을 위한 주문 관리 시스템
         </p>
-        <div className="space-y-4">
-          <p className="text-gray-500">
-            🚀 Phase 1: 프로젝트 초기 설정 완료
-          </p>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <Link
+            href="/login"
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+          >
+            로그인
+          </Link>
+          <Link
+            href="/signup"
+            className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+          >
+            회원가입
+          </Link>
         </div>
       </div>
     </div>
