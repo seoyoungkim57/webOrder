@@ -7,6 +7,7 @@ import {
   generateVerificationCode,
   getTokenExpiryDate,
 } from '@/lib/utils'
+import { checkRateLimit, orderCreateLimit } from '@/lib/rate-limit'
 
 // 주문 목록 조회 (GET)
 export async function GET(request: NextRequest) {
@@ -67,6 +68,23 @@ export async function POST(request: NextRequest) {
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+    }
+
+    // Rate Limiting 체크 (사용자 ID 기반)
+    const rateLimitResult = checkRateLimit(session.user.id, orderCreateLimit)
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: '주문 생성 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimitResult.retryAfter || 60),
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': String(rateLimitResult.resetTime),
+          },
+        }
+      )
     }
 
     const body = await request.json()

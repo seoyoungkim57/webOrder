@@ -2,37 +2,17 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import AddressSearch from '@/components/AddressSearch'
 
 interface OrderItem {
+  id?: string
   itemCode: string
   itemName: string
   itemSpec: string
   quantity: string
   unit: string
-}
-
-interface Destination {
-  id: string
-  nickname: string
-  businessName: string
-  businessNumber: string | null
-  contactName: string
-  phone1: string
-  phone2: string | null
-  address: string
-  addressDetail: string | null
-  isDefault: boolean
-}
-
-interface SavedAddress {
-  id: string
-  nickname: string
-  address: string
-  addressDetail: string | null
-  isDefault: boolean
 }
 
 const emptyItem: OrderItem = {
@@ -43,7 +23,6 @@ const emptyItem: OrderItem = {
   unit: '개',
 }
 
-// 배송시간 옵션 (시간 선택 후 "까지" 붙임)
 const deliveryTimeOptions = [
   { value: '', label: '선택 안함' },
   { value: '09:00', label: '09시' },
@@ -85,27 +64,17 @@ const formatBusinessNumber = (value: string) => {
 // 요일 이름
 const dayNames = ['일', '월', '화', '수', '목', '금', '토']
 
-export default function NewOrderPage() {
+export default function EditOrderPage() {
   const { status } = useSession()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const copyId = searchParams.get('copy')
+  const params = useParams()
+  const orderId = params.id as string
 
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [showOrderModal, setShowOrderModal] = useState(false)
-  const [pastOrders, setPastOrders] = useState<any[]>([])
-  const [loadingOrders, setLoadingOrders] = useState(false)
+  const [useCustomTime, setUseCustomTime] = useState(false)
   const [holidays, setHolidays] = useState<Record<string, string>>({})
-  const [showDestinationModal, setShowDestinationModal] = useState(false)
-  const [destinations, setDestinations] = useState<Destination[]>([])
-  const [loadingDestinations, setLoadingDestinations] = useState(false)
-  const [showSaveDestinationModal, setShowSaveDestinationModal] = useState(false)
-  const [savingDestination, setSavingDestination] = useState(false)
-  const [destinationNickname, setDestinationNickname] = useState('')
-  const [showAddressModal, setShowAddressModal] = useState(false)
-  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([])
-  const [loadingAddresses, setLoadingAddresses] = useState(false)
 
   const [formData, setFormData] = useState({
     recipientName: '',
@@ -118,10 +87,8 @@ export default function NewOrderPage() {
     deliveryDate: '',
     deliveryTimeType: '',
     deliveryTimeCustom: '',
-    deliveryTime: '',
     memo: '',
   })
-  const [useCustomTime, setUseCustomTime] = useState(false)
 
   const [items, setItems] = useState<OrderItem[]>([{ ...emptyItem }])
 
@@ -165,28 +132,36 @@ export default function NewOrderPage() {
     }
   }
 
-  // 복사할 주문이 있으면 데이터 불러오기
+  // 기존 주문 데이터 불러오기
   useEffect(() => {
-    if (copyId && status === 'authenticated') {
-      fetchOrderToCopy(copyId)
+    if (status === 'authenticated' && orderId) {
+      fetchOrder()
     }
-  }, [copyId, status])
+  }, [status, orderId])
 
-  const fetchOrderToCopy = async (orderId: string) => {
+  const fetchOrder = async () => {
     try {
       const response = await fetch(`/api/orders/${orderId}`)
       const data = await response.json()
 
-      if (!response.ok) return
+      if (!response.ok) {
+        setError(data.error || '주문을 불러올 수 없습니다.')
+        return
+      }
 
       const order = data.order
 
-      // 배송시간에서 시간값 추출
+      // 배송시간에서 시간값 추출 (예: "09시까지" -> "09:00")
       let deliveryTimeType = ''
+      let deliveryTimeCustom = ''
       if (order.deliveryTime) {
-        const match = order.deliveryTime.match(/(\d{2})시/)
+        const match = order.deliveryTime.match(/(\d{2})시까지/)
         if (match) {
           deliveryTimeType = `${match[1]}:00`
+        } else {
+          // 시간 형식이 아니면 직접 입력으로 처리
+          deliveryTimeCustom = order.deliveryTime.replace('까지', '')
+          setUseCustomTime(true)
         }
       }
 
@@ -198,15 +173,15 @@ export default function NewOrderPage() {
         recipientPhone2: order.recipientPhone2 || '',
         recipientAddress: order.recipientAddress,
         recipientAddressDetail: order.recipientAddressDetail || '',
-        deliveryDate: '', // 배송일은 새로 선택하도록 비워둠
+        deliveryDate: order.deliveryDate.split('T')[0],
         deliveryTimeType,
-        deliveryTimeCustom: '',
-        deliveryTime: '',
+        deliveryTimeCustom,
         memo: order.memo || '',
       })
 
       setItems(
         order.items.map((item: any) => ({
+          id: item.id,
           itemCode: item.itemCode || '',
           itemName: item.itemName,
           itemSpec: item.itemSpec || '',
@@ -215,140 +190,13 @@ export default function NewOrderPage() {
         }))
       )
     } catch (err) {
-      console.error('주문 복사 실패:', err)
-    }
-  }
-
-  // 과거 주문 목록 불러오기
-  const fetchPastOrders = async () => {
-    setLoadingOrders(true)
-    try {
-      const response = await fetch('/api/orders')
-      const data = await response.json()
-      if (response.ok) {
-        setPastOrders(data.orders || [])
-      }
-    } catch (err) {
-      console.error('주문 목록 불러오기 실패:', err)
+      setError('서버 오류가 발생했습니다.')
     } finally {
-      setLoadingOrders(false)
+      setLoading(false)
     }
   }
 
-  // 과거 주문 불러오기 모달 열기
-  const openOrderModal = () => {
-    setShowOrderModal(true)
-    fetchPastOrders()
-  }
-
-  // 거래처 목록 불러오기
-  const fetchDestinations = async () => {
-    setLoadingDestinations(true)
-    try {
-      const response = await fetch('/api/destinations')
-      const data = await response.json()
-      if (response.ok) {
-        setDestinations(data.destinations || [])
-      }
-    } catch (err) {
-      console.error('거래처 목록 불러오기 실패:', err)
-    } finally {
-      setLoadingDestinations(false)
-    }
-  }
-
-  // 배송지 주소 목록 불러오기
-  const fetchAddresses = async () => {
-    setLoadingAddresses(true)
-    try {
-      const response = await fetch('/api/addresses')
-      const data = await response.json()
-      if (response.ok) {
-        setSavedAddresses(data.addresses || [])
-      }
-    } catch (err) {
-      console.error('배송지 주소 목록 불러오기 실패:', err)
-    } finally {
-      setLoadingAddresses(false)
-    }
-  }
-
-  // 배송지 주소 불러오기 모달 열기
-  const openAddressModal = () => {
-    setShowAddressModal(true)
-    fetchAddresses()
-  }
-
-  // 배송지 주소 선택
-  const selectAddress = (address: SavedAddress) => {
-    setFormData((prev) => ({
-      ...prev,
-      recipientAddress: address.address,
-      recipientAddressDetail: address.addressDetail || '',
-    }))
-    setShowAddressModal(false)
-  }
-
-  // 거래처 불러오기 모달 열기
-  const openDestinationModal = () => {
-    setShowDestinationModal(true)
-    fetchDestinations()
-  }
-
-  // 거래처 선택 (주소 정보는 제외 - 배송지 주소는 별도 관리)
-  const selectDestination = (destination: Destination) => {
-    setFormData((prev) => ({
-      ...prev,
-      recipientName: destination.contactName,
-      recipientBusinessName: destination.businessName,
-      recipientBusinessNumber: destination.businessNumber || '',
-      recipientPhone1: destination.phone1,
-      recipientPhone2: destination.phone2 || '',
-    }))
-    setShowDestinationModal(false)
-  }
-
-  // 과거 주문 선택
-  const selectPastOrder = (order: any) => {
-    // 배송시간에서 시간값 추출
-    let deliveryTimeType = ''
-    if (order.deliveryTime) {
-      const match = order.deliveryTime.match(/(\d{2})시/)
-      if (match) {
-        deliveryTimeType = `${match[1]}:00`
-      }
-    }
-
-    setFormData({
-      recipientName: order.recipientName,
-      recipientBusinessName: order.recipientBusinessName,
-      recipientBusinessNumber: order.recipientBusinessNumber || '',
-      recipientPhone1: order.recipientPhone1,
-      recipientPhone2: order.recipientPhone2 || '',
-      recipientAddress: order.recipientAddress,
-      recipientAddressDetail: order.recipientAddressDetail || '',
-      deliveryDate: '', // 배송일은 새로 선택
-      deliveryTimeType,
-      deliveryTimeCustom: '',
-      deliveryTime: '',
-      memo: order.memo || '',
-    })
-
-    setItems(
-      order.items.map((item: any) => ({
-        itemCode: item.itemCode || '',
-        itemName: item.itemName,
-        itemSpec: item.itemSpec || '',
-        quantity: String(item.quantity),
-        unit: item.unit,
-      }))
-    )
-
-    setShowOrderModal(false)
-  }
-
-  // 인증 체크
-  if (status === 'loading') {
+  if (status === 'loading' || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-gray-600">로딩 중...</div>
@@ -388,13 +236,7 @@ export default function NewOrderPage() {
     setError('')
   }
 
-  const MAX_ITEMS = 200
-
   const addItem = () => {
-    if (items.length >= MAX_ITEMS) {
-      setError(`품목은 최대 ${MAX_ITEMS}개까지 추가할 수 있습니다.`)
-      return
-    }
     setItems((prev) => [...prev, { ...emptyItem }])
   }
 
@@ -403,7 +245,6 @@ export default function NewOrderPage() {
     setItems((prev) => prev.filter((_, i) => i !== index))
   }
 
-  // 배송시간 문자열 생성 (선택한 시간 + "까지")
   const getDeliveryTimeString = () => {
     if (useCustomTime) {
       return formData.deliveryTimeCustom ? `${formData.deliveryTimeCustom}까지` : ''
@@ -413,118 +254,55 @@ export default function NewOrderPage() {
     return option ? `${option.label}까지` : ''
   }
 
-  // 거래처 저장 함수
-  const saveDestination = async () => {
-    if (!destinationNickname.trim()) {
-      return
-    }
-
-    setSavingDestination(true)
-    try {
-      const response = await fetch('/api/destinations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nickname: destinationNickname,
-          businessName: formData.recipientBusinessName,
-          businessNumber: formData.recipientBusinessNumber || null,
-          contactName: formData.recipientName,
-          phone1: formData.recipientPhone1,
-          phone2: formData.recipientPhone2 || null,
-          address: formData.recipientAddress,
-          addressDetail: formData.recipientAddressDetail || null,
-          isDefault: false,
-        }),
-      })
-
-      if (response.ok) {
-        setShowSaveDestinationModal(false)
-        setDestinationNickname('')
-        router.push('/orders')
-      }
-    } catch (err) {
-      console.error('거래처 저장 실패:', err)
-      router.push('/orders')
-    } finally {
-      setSavingDestination(false)
-    }
-  }
-
-  // 거래처 저장 안하고 이동
-  const skipSaveDestination = () => {
-    setShowSaveDestinationModal(false)
-    setDestinationNickname('')
-    router.push('/orders')
-  }
-
-  // 새 거래처인지 확인 (저장된 거래처에서 선택하지 않은 경우)
-  const isNewDestination = () => {
-    // 기존 거래처 목록에 있는지 확인
-    return !destinations.some(
-      (d) =>
-        d.businessName === formData.recipientBusinessName &&
-        d.contactName === formData.recipientName &&
-        d.phone1 === formData.recipientPhone1
-    )
-  }
-
-  const handleSubmit = async (e: React.FormEvent, orderStatus: 'DRAFT' | 'SENT') => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    setLoading(true)
+    setSaving(true)
 
-    // 품목 검증
     const validItems = items.filter((item) => item.itemName && item.quantity && item.unit)
     if (validItems.length === 0) {
       setError('최소 1개 이상의 품목을 입력해주세요.')
-      setLoading(false)
+      setSaving(false)
       return
     }
 
     try {
-      const response = await fetch('/api/orders', {
-        method: 'POST',
+      const response = await fetch(`/api/orders/${orderId}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
           deliveryTime: getDeliveryTimeString(),
           items: validItems.map((item) => ({
-            ...item,
+            id: item.id,
+            itemCode: item.itemCode,
+            itemName: item.itemName,
+            itemSpec: item.itemSpec,
             quantity: parseFloat(item.quantity),
+            unit: item.unit,
           })),
-          status: orderStatus,
         }),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        setError(data.error || '주문 생성에 실패했습니다.')
-        setLoading(false)
+        setError(data.error || '주문 수정에 실패했습니다.')
+        setSaving(false)
         return
       }
 
-      // 새 거래처인 경우 저장 여부 묻기
-      if (isNewDestination() && formData.recipientBusinessName && formData.recipientName) {
-        setDestinationNickname(formData.recipientBusinessName) // 기본값으로 업체명 설정
-        setShowSaveDestinationModal(true)
-        setLoading(false)
-      } else {
-        // 기존 거래처이면 바로 이동
-        router.push('/orders')
-      }
+      router.push(`/orders/${orderId}`)
     } catch (err) {
       setError('서버 오류가 발생했습니다.')
-      setLoading(false)
+      setSaving(false)
     }
   }
 
-  // 오늘 날짜 (최소 배송일)
   const today = new Date().toISOString().split('T')[0]
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* 헤더 */}
       <nav className="bg-white shadow">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
@@ -534,8 +312,8 @@ export default function NewOrderPage() {
               </Link>
             </div>
             <div className="flex items-center">
-              <Link href="/orders" className="text-sm text-gray-600 hover:text-gray-900">
-                주문 목록
+              <Link href={`/orders/${orderId}`} className="text-sm text-gray-600 hover:text-gray-900">
+                주문 상세로 돌아가기
               </Link>
             </div>
           </div>
@@ -544,9 +322,7 @@ export default function NewOrderPage() {
 
       <main className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">새 주문 생성</h1>
-          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">주문 수정</h1>
 
           {error && (
             <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
@@ -554,21 +330,12 @@ export default function NewOrderPage() {
             </div>
           )}
 
-          <form onSubmit={(e) => handleSubmit(e, 'SENT')}>
+          <form onSubmit={handleSubmit}>
             {/* 거래처 정보 */}
             <section className="mb-8">
-              <div className="flex justify-between items-center mb-4 pb-2 border-b">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  거래처 정보
-                </h2>
-                <button
-                  type="button"
-                  onClick={openDestinationModal}
-                  className="px-3 py-1.5 text-sm border border-purple-500 text-purple-600 rounded-md hover:bg-purple-50 transition-colors"
-                >
-                  거래처 불러오기
-                </button>
-              </div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
+                거래처 정보
+              </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -581,7 +348,6 @@ export default function NewOrderPage() {
                     onChange={handleChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="(주)가나다"
                   />
                 </div>
                 <div>
@@ -594,7 +360,6 @@ export default function NewOrderPage() {
                     value={formData.recipientBusinessNumber}
                     onChange={handleChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="123-45-67890"
                   />
                 </div>
                 <div>
@@ -608,7 +373,6 @@ export default function NewOrderPage() {
                     onChange={handleChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="홍길동"
                   />
                 </div>
                 <div>
@@ -622,7 +386,6 @@ export default function NewOrderPage() {
                     onChange={handleChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="010-1234-5678"
                   />
                 </div>
               </div>
@@ -725,18 +488,9 @@ export default function NewOrderPage() {
                   </div>
                 </div>
                 <div className="sm:col-span-2">
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="block text-sm font-medium text-gray-700">
-                      배송지 주소 *
-                    </label>
-                    <button
-                      type="button"
-                      onClick={openAddressModal}
-                      className="px-2 py-1 text-xs border border-orange-500 text-orange-600 rounded hover:bg-orange-50 transition-colors"
-                    >
-                      배송지 불러오기
-                    </button>
-                  </div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    배송지 주소 *
+                  </label>
                   <AddressSearch
                     value={formData.recipientAddress}
                     onSelect={handleAddressSelect}
@@ -753,7 +507,6 @@ export default function NewOrderPage() {
                     value={formData.recipientAddressDetail}
                     onChange={handleChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="OO빌딩 3층"
                   />
                 </div>
                 <div className="sm:col-span-2">
@@ -778,25 +531,16 @@ export default function NewOrderPage() {
 
             {/* 품목 정보 */}
             <section className="mb-8">
-              <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div className="mb-4 pb-2 border-b">
                 <h2 className="text-lg font-semibold text-gray-900">주문 품목</h2>
-                <button
-                  type="button"
-                  onClick={openOrderModal}
-                  className="px-3 py-1.5 text-sm border border-blue-500 text-blue-600 rounded-md hover:bg-blue-50 transition-colors"
-                >
-                  과거 주문 불러오기
-                </button>
               </div>
 
-              {/* 품목 입력 영역 */}
               <div className="space-y-2">
                 {items.map((item, index) => (
                   <div
                     key={index}
                     className="p-3 bg-gray-50 rounded-lg border border-gray-200"
                   >
-                    {/* 모바일: 넘버링 + 삭제 버튼 */}
                     <div className="flex sm:hidden w-full justify-between items-center mb-3">
                       <span className="flex items-center gap-2">
                         <span className="w-7 h-7 flex items-center justify-center bg-blue-100 text-blue-700 rounded-full text-sm font-bold">
@@ -817,16 +561,13 @@ export default function NewOrderPage() {
                       )}
                     </div>
 
-                    {/* 데스크탑: 한 줄 레이아웃 */}
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                      {/* 넘버링 (데스크탑) */}
                       <div className="hidden sm:flex items-center justify-center flex-shrink-0">
                         <span className="w-7 h-7 flex items-center justify-center bg-blue-100 text-blue-700 rounded-full text-sm font-bold">
                           {index + 1}
                         </span>
                       </div>
 
-                      {/* 품목코드 */}
                       <div className="w-full sm:w-24 flex-shrink-0">
                         <label className="sm:hidden text-xs text-gray-500 mb-1 block">품목코드</label>
                         <input
@@ -838,7 +579,6 @@ export default function NewOrderPage() {
                         />
                       </div>
 
-                      {/* 품목명 */}
                       <div className="w-full sm:flex-1">
                         <label className="sm:hidden text-xs text-gray-500 mb-1 block">품목명 *</label>
                         <input
@@ -851,7 +591,6 @@ export default function NewOrderPage() {
                         />
                       </div>
 
-                      {/* 규격 */}
                       <div className="w-full sm:w-28 flex-shrink-0">
                         <label className="sm:hidden text-xs text-gray-500 mb-1 block">규격</label>
                         <input
@@ -863,7 +602,6 @@ export default function NewOrderPage() {
                         />
                       </div>
 
-                      {/* 수량 */}
                       <div className="w-full sm:w-24 flex-shrink-0">
                         <label className="sm:hidden text-xs text-gray-500 mb-1 block">수량 *</label>
                         <input
@@ -878,7 +616,6 @@ export default function NewOrderPage() {
                         />
                       </div>
 
-                      {/* 단위 */}
                       <div className="w-full sm:w-20 flex-shrink-0">
                         <label className="sm:hidden text-xs text-gray-500 mb-1 block">단위</label>
                         <select
@@ -898,7 +635,6 @@ export default function NewOrderPage() {
                         </select>
                       </div>
 
-                      {/* 삭제 버튼 (데스크탑) */}
                       <div className="hidden sm:flex flex-shrink-0">
                         {items.length > 1 ? (
                           <button
@@ -924,289 +660,34 @@ export default function NewOrderPage() {
               <button
                 type="button"
                 onClick={addItem}
-                disabled={items.length >= MAX_ITEMS}
-                className={`w-full mt-3 py-3 border-2 border-dashed rounded-lg flex items-center justify-center gap-2 transition-colors ${
-                  items.length >= MAX_ITEMS
-                    ? 'border-gray-200 text-gray-400 cursor-not-allowed'
-                    : 'border-gray-300 text-gray-600 hover:border-blue-500 hover:text-blue-600'
-                }`}
+                className="w-full mt-3 py-3 border-2 border-dashed border-gray-300 text-gray-600 rounded-lg hover:border-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                품목 추가 ({items.length}/{MAX_ITEMS})
+                품목 추가
               </button>
             </section>
 
             {/* 버튼 */}
             <div className="flex flex-col sm:flex-row gap-3 justify-end">
-              <button
-                type="button"
-                onClick={(e) => handleSubmit(e as any, 'DRAFT')}
-                disabled={loading}
-                className="px-6 py-3 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
+              <Link
+                href={`/orders/${orderId}`}
+                className="px-6 py-3 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors text-center"
               >
-                임시저장
-              </button>
+                취소
+              </Link>
               <button
                 type="submit"
-                disabled={loading}
-                className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 touch-feedback"
+                disabled={saving}
+                className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
-                {loading ? '처리 중...' : '발송하기'}
+                {saving ? '저장 중...' : '저장하기'}
               </button>
             </div>
           </form>
         </div>
       </main>
-
-      {/* 과거 주문 불러오기 모달 */}
-      {showOrderModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
-            <div className="p-4 border-b flex justify-between items-center">
-              <h2 className="text-lg font-semibold">과거 주문 불러오기</h2>
-              <button
-                onClick={() => setShowOrderModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-4 overflow-y-auto max-h-[60vh]">
-              {loadingOrders ? (
-                <div className="text-center py-8 text-gray-500">불러오는 중...</div>
-              ) : pastOrders.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">과거 주문이 없습니다.</div>
-              ) : (
-                <div className="space-y-2">
-                  {pastOrders.map((order) => (
-                    <button
-                      key={order.id}
-                      onClick={() => selectPastOrder(order)}
-                      className="w-full text-left p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="font-medium text-gray-900">
-                            {order.recipientBusinessName}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {order.recipientName} · {order.recipientPhone1}
-                          </div>
-                          <div className="text-sm text-gray-400 mt-1">
-                            {order.items?.length || 0}개 품목
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-gray-400">
-                            {new Date(order.createdAt).toLocaleDateString('ko-KR')}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {order.orderNumber}
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 거래처 불러오기 모달 */}
-      {showDestinationModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
-            <div className="p-4 border-b flex justify-between items-center">
-              <h2 className="text-lg font-semibold">거래처 불러오기</h2>
-              <button
-                onClick={() => setShowDestinationModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-4 overflow-y-auto max-h-[60vh]">
-              {loadingDestinations ? (
-                <div className="text-center py-8 text-gray-500">불러오는 중...</div>
-              ) : destinations.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <p className="mb-4">저장된 거래처가 없습니다.</p>
-                  <Link
-                    href="/destinations/new"
-                    className="text-purple-600 hover:text-purple-700 font-medium"
-                  >
-                    거래처 등록하기
-                  </Link>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {destinations.map((destination) => (
-                    <button
-                      key={destination.id}
-                      onClick={() => selectDestination(destination)}
-                      className="w-full text-left p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900">
-                              {destination.nickname}
-                            </span>
-                            {destination.isDefault && (
-                              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
-                                기본
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-sm text-gray-600 mt-1">
-                            {destination.businessName}
-                            {destination.businessNumber && (
-                              <span className="text-gray-400 ml-2">
-                                ({destination.businessNumber})
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-sm text-gray-500 mt-1">
-                            {destination.contactName} · {destination.phone1}
-                          </div>
-                          <div className="text-sm text-gray-400 mt-1">
-                            {destination.address}
-                            {destination.addressDetail && ` ${destination.addressDetail}`}
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 배송지 주소 불러오기 모달 */}
-      {showAddressModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
-            <div className="p-4 border-b flex justify-between items-center">
-              <h2 className="text-lg font-semibold">배송지 주소 불러오기</h2>
-              <button
-                onClick={() => setShowAddressModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-4 overflow-y-auto max-h-[60vh]">
-              {loadingAddresses ? (
-                <div className="text-center py-8 text-gray-500">불러오는 중...</div>
-              ) : savedAddresses.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <p className="mb-4">저장된 배송지 주소가 없습니다.</p>
-                  <Link
-                    href="/addresses/new"
-                    className="text-orange-600 hover:text-orange-700 font-medium"
-                  >
-                    배송지 주소 등록하기
-                  </Link>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {savedAddresses.map((address) => (
-                    <button
-                      key={address.id}
-                      onClick={() => selectAddress(address)}
-                      className="w-full text-left p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900">
-                              {address.nickname}
-                            </span>
-                            {address.isDefault && (
-                              <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full">
-                                기본
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-sm text-gray-600 mt-1">
-                            {address.address}
-                            {address.addressDetail && (
-                              <span className="text-gray-500"> {address.addressDetail}</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 거래처 저장 여부 확인 모달 */}
-      {showSaveDestinationModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            <div className="p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">
-                거래처 저장
-              </h2>
-              <p className="text-sm text-gray-600 mb-4">
-                입력하신 거래처 정보를 저장하시겠습니까?<br />
-                저장하면 다음 주문 시 빠르게 불러올 수 있습니다.
-              </p>
-              <div className="mb-4 p-3 bg-gray-50 rounded-md text-sm">
-                <div className="text-gray-900 font-medium">{formData.recipientBusinessName}</div>
-                <div className="text-gray-600">{formData.recipientName} · {formData.recipientPhone1}</div>
-                <div className="text-gray-500 text-xs mt-1">{formData.recipientAddress}</div>
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  별칭 (구분하기 쉬운 이름)
-                </label>
-                <input
-                  type="text"
-                  value={destinationNickname}
-                  onChange={(e) => setDestinationNickname(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="예: 본사, 강남점, 김부장님"
-                />
-              </div>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={skipSaveDestination}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-                >
-                  저장 안함
-                </button>
-                <button
-                  type="button"
-                  onClick={saveDestination}
-                  disabled={savingDestination || !destinationNickname.trim()}
-                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors disabled:opacity-50"
-                >
-                  {savingDestination ? '저장 중...' : '저장하기'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

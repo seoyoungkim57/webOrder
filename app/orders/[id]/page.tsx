@@ -46,7 +46,7 @@ interface Order {
 }
 
 export default function OrderDetailPage() {
-  const { data: session, status: authStatus } = useSession()
+  const { status: authStatus } = useSession()
   const router = useRouter()
   const params = useParams()
   const orderId = params.id as string
@@ -55,6 +55,7 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [statusChanging, setStatusChanging] = useState(false)
 
   useEffect(() => {
     if (authStatus === 'unauthenticated') {
@@ -127,6 +128,27 @@ export default function OrderDetailPage() {
     navigator.clipboard.writeText(shareUrl)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!order || statusChanging) return
+
+    setStatusChanging(true)
+    try {
+      const response = await fetch(`/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      if (response.ok) {
+        fetchOrder()
+      }
+    } catch (err) {
+      console.error('상태 변경 실패:', err)
+    } finally {
+      setStatusChanging(false)
+    }
   }
 
   const getStatusBadge = (status: string) => {
@@ -224,6 +246,12 @@ export default function OrderDetailPage() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/orders"
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200 transition-colors"
+                >
+                  목록
+                </Link>
                 {order.status === 'DRAFT' && (
                   <>
                     <button
@@ -248,19 +276,44 @@ export default function OrderDetailPage() {
                     {copied ? '복사됨!' : '공유 링크 복사'}
                   </button>
                 )}
-                <button
-                  onClick={handleDelete}
-                  className="px-4 py-2 border border-red-300 text-red-600 rounded-md text-sm hover:bg-red-50 transition-colors"
-                >
-                  {order.status === 'DRAFT' ? '삭제' : '취소'}
-                </button>
+                {/* 상태 변경 드롭다운 */}
+                {!['DRAFT', 'CANCELLED'].includes(order.status) && (
+                  <select
+                    value={order.status}
+                    onChange={(e) => handleStatusChange(e.target.value)}
+                    disabled={statusChanging}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                  >
+                    <option value="SENT">발송됨</option>
+                    <option value="VIEWED">확인됨</option>
+                    <option value="ACCEPTED">수락됨</option>
+                    <option value="REJECTED">거절됨</option>
+                    <option value="REVIEWING">검토중</option>
+                  </select>
+                )}
+                {order.status !== 'CANCELLED' && (
+                  <button
+                    onClick={handleDelete}
+                    className="px-4 py-2 border border-red-300 text-red-600 rounded-md text-sm hover:bg-red-50 transition-colors"
+                  >
+                    {order.status === 'DRAFT' ? '삭제' : '취소'}
+                  </button>
+                )}
+                {order.status === 'CANCELLED' && (
+                  <Link
+                    href={`/orders/new?copy=${order.id}`}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 transition-colors"
+                  >
+                    재주문
+                  </Link>
+                )}
               </div>
             </div>
           </div>
 
-          {/* 수주자 정보 */}
+          {/* 거래처 정보 */}
           <div className="p-6 border-b">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">수주자 정보</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">거래처 정보</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-gray-500">업체명:</span>

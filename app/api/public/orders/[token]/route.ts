@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { checkRateLimit, getClientIP, verificationApiLimit } from '@/lib/rate-limit'
 
 // 토큰으로 주문 조회 (인증 불필요 - 수주자용)
 export async function GET(
@@ -76,6 +77,28 @@ export async function POST(
   { params }: { params: { token: string } }
 ) {
   try {
+    // Rate Limiting 체크 (브루트포스 방지)
+    const clientIP = getClientIP(request)
+    const rateLimitResult = checkRateLimit(clientIP, verificationApiLimit)
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          error: rateLimitResult.blocked
+            ? '너무 많은 인증 시도로 일시적으로 차단되었습니다. 30분 후 다시 시도해주세요.'
+            : '인증 시도 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.',
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimitResult.retryAfter || 60),
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': String(rateLimitResult.resetTime),
+          },
+        }
+      )
+    }
+
     const body = await request.json()
     const { verificationCode } = body
 

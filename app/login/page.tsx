@@ -12,11 +12,19 @@ export default function LoginPage() {
     email: '',
     password: '',
   })
+  const [rememberEmail, setRememberEmail] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
+    // 저장된 이메일 불러오기
+    const savedEmail = localStorage.getItem('savedEmail')
+    if (savedEmail) {
+      setFormData((prev) => ({ ...prev, email: savedEmail }))
+      setRememberEmail(true)
+    }
+
     // 회원가입 성공 후 리다이렉트된 경우
     if (searchParams.get('registered') === 'true') {
       setSuccess('회원가입이 완료되었습니다. 로그인해주세요.')
@@ -46,6 +54,13 @@ export default function LoginPage() {
         setError('이메일 또는 비밀번호가 올바르지 않습니다.')
         setLoading(false)
         return
+      }
+
+      // 이메일 저장 처리
+      if (rememberEmail) {
+        localStorage.setItem('savedEmail', formData.email)
+      } else {
+        localStorage.removeItem('savedEmail')
       }
 
       // 로그인 성공 - 대시보드로 이동
@@ -116,6 +131,20 @@ export default function LoginPage() {
                 placeholder="비밀번호를 입력하세요"
               />
             </div>
+          </div>
+
+          <div className="flex items-center">
+            <input
+              id="rememberEmail"
+              name="rememberEmail"
+              type="checkbox"
+              checked={rememberEmail}
+              onChange={(e) => setRememberEmail(e.target.checked)}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="rememberEmail" className="ml-2 block text-sm text-gray-700">
+              이메일 주소 저장
+            </label>
           </div>
 
           <div>

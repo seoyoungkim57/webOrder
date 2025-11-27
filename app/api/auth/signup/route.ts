@@ -1,9 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
+import { checkRateLimit, getClientIP, signupApiLimit } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate Limiting 체크
+    const clientIP = getClientIP(request)
+    const rateLimitResult = checkRateLimit(clientIP, signupApiLimit)
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          error: rateLimitResult.blocked
+            ? '너무 많은 요청으로 일시적으로 차단되었습니다. 잠시 후 다시 시도해주세요.'
+            : '요청 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.',
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimitResult.retryAfter || 60),
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': String(rateLimitResult.resetTime),
+          },
+        }
+      )
+    }
+
     const body = await request.json()
     const { email, password, name, phone } = body
 

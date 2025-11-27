@@ -111,3 +111,23 @@ video {
     opacity: 0.7;
   }
 }
+
+/* 달력 (date input) 스타일링 */
+input[type="date"].date-picker-large::-webkit-calendar-picker-indicator {
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+}
+
+/* 요일 표시 - 일요일/공휴일 빨간색 */
+.day-label-sunday,
+.day-label-holiday {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+/* 요일 표시 - 토요일 파란색 */
+.day-label-saturday {
+  color: #2563eb;
+  font-weight: 600;
+}

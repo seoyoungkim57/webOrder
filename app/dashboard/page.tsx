@@ -65,11 +65,11 @@ export default function DashboardPage() {
               webOrder 대시보드입니다. 여기서 주문을 생성하고 관리할 수 있습니다.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-blue-50 rounded-lg p-6">
                 <h3 className="text-lg font-medium text-blue-900">새 주문 생성</h3>
                 <p className="mt-2 text-sm text-blue-700">
-                  수주자에게 보낼 새로운 주문을 생성합니다.
+                  거래처에 보낼 새로운 주문을 생성합니다.
                 </p>
                 <Link
                   href="/orders/new"
@@ -93,13 +93,26 @@ export default function DashboardPage() {
               </div>
 
               <div className="bg-purple-50 rounded-lg p-6">
-                <h3 className="text-lg font-medium text-purple-900">수주자 관리</h3>
+                <h3 className="text-lg font-medium text-purple-900">거래처 관리</h3>
                 <p className="mt-2 text-sm text-purple-700">
-                  자주 거래하는 수주자를 관리합니다.
+                  자주 거래하는 거래처를 관리합니다.
                 </p>
                 <Link
                   href="/destinations"
                   className="mt-4 inline-block px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700 transition-colors"
+                >
+                  관리하기
+                </Link>
+              </div>
+
+              <div className="bg-orange-50 rounded-lg p-6">
+                <h3 className="text-lg font-medium text-orange-900">배송지 주소 관리</h3>
+                <p className="mt-2 text-sm text-orange-700">
+                  자주 사용하는 배송지 주소를 관리합니다.
+                </p>
+                <Link
+                  href="/addresses"
+                  className="mt-4 inline-block px-4 py-2 bg-orange-600 text-white rounded-md text-sm hover:bg-orange-700 transition-colors"
                 >
                   관리하기
                 </Link>
